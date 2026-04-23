@@ -1,0 +1,10 @@
+# This is for Stage 1 Bootloader
+
+[default_config]
+assembler = "nasm"
+instruction_set = "x86"
+
+[opts]
+compiler = "nasm"
+diagnostics = true
+bits = 16
