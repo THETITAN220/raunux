@@ -1,46 +1,94 @@
-ORG 0x7C00
-BITS 16
-
-section .data
-    boot_drive db 0
+[ORG 0x7C00]
+[BITS 16]
 
 section .text
-start:
-    # Cleaning all the segment registers
+global _start
+
+_start:
+    mov bl, dl
+
+    cli
     xor ax, ax
     mov ds, ax
     mov es, ax
     mov ss, ax
-
-    # Setup stack
     mov sp, 0x7C00
+    sti
 
-    # Save boot drive
-    mov [boot_drive], dl
+    mov [BOOT_DRIVE], bl
 
-    # Load the sector
-    mov ah, 0x02
-    mov al, 1
+    mov si, msg_load
+    call print_string
 
-    mov ch, 0
-    mov cl, 2
-    mov dh, 0
-    mov dl, [boot_drive]
-
-    mov bx, 0x0000
-    mov es, 0x1000
-
+    mov ah, 0x00
+    mov dl, [BOOT_DRIVE]
     int 0x13
     jc disk_error
 
-    # Jump to loaded code
-    jmp 0x1000:0x0000
+    mov ah, 0x42
+    mov dl, [BOOT_DRIVE]
+    mov si, disk_address_packet
+    int 0x13
+    jc disk_error
+
+    jmp 0x7E00
 
 disk_error:
-    mov ah, 0x0e
-    mov al, 'E'
-    int 0x10
-    jmp $
+    mov bh, ah
 
-times 510 - ($-$$) db 0
+    mov si, msg_error
+    call print_string
+
+    mov al, bh
+    shr al, 4
+    call print_hex_nibble
+
+    mov al, bh
+    and al, 0x0F
+    call print_hex_nibble
+
+    jmp halt
+
+print_hex_nibble:
+    cmp al, 9
+    jle .is_digit
+    add al, 0x37
+    jmp .print
+.is_digit:
+    add al, '0'
+.print:
+    mov ah, 0x0E
+    int 0x10
+    ret
+
+halt:
+    cli
+    hlt
+    jmp halt
+
+print_string:
+    mov ah, 0x0E
+.loop:
+    lodsb
+    test al, al
+    jz .done
+    int 0x10
+    jmp .loop
+.done:
+    ret
+
+BOOT_DRIVE db 0
+msg_load   db "Loading stage 2 (LBA)...", 0x0D, 0x0A, 0
+msg_error  db "Disk error: 0x", 0
+
+align 4
+disk_address_packet:
+    db 0x10
+    db 0
+    dw 1
+    dw 0x7E00
+    dw 0x0000
+    dq 1
+
+times 510 - ($ - $$) db 0
 dw 0xAA55
